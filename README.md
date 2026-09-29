@@ -1,89 +1,87 @@
 # E-commerce-Analytics
 
-> Projeto de nível intermediário em SQL focado em Engenharia e Análise de Dados para o setor de e-commerce, explorando o comportamento do consumidor, retenção e recorrência de compras.
+> An intermediate-level SQL project focused on Data Engineering and Analytics for the e-commerce sector, exploring consumer behavior, retention, and repeat purchase patterns.
 
 ---
 
-## 1. Visão Geral do Projeto
-O objetivo deste repositório é demonstrar habilidades avançadas em manipulação de dados utilizando **SQL**. Através de consultas estruturadas com **CTEs (Common Table Expressions)** e **Window Functions**, o projeto analisa o ciclo de vida do cliente a partir da sua primeira transação, medindo intervalos de recompra e taxas de retenção (*Cohort Retention*).
+## 1. Project Overview
+The goal of this repository is to demonstrate advanced data manipulation skills using **SQL**. Through structured queries utilizing **CTEs (Common Table Expressions)** and **Window Functions**, the project analyzes the customer lifecycle starting from the initial transaction, measuring repurchase intervals and retention rates (*Cohort Retention*).
 
 ---
 
-## 2. Arquitetura e Modelagem de Dados
-O banco de dados é composto por duas tabelas principais: `clientes` e `pedidos`. 
+## 2. Data Architecture and Modeling
+The database consists of two main tables: `clientes` (customers) and `pedidos` (orders).
 
 ```mermaid
 erDiagram
-    CLIENTES {
-        int id PK
-        date data_cadastro
-        varchar estado
-    }
+CLIENTES {
+int id PK
+date data_cadastro
+varchar estado
+}
 
-    PEDIDOS {
-        int id PK
-        int cliente_id FK
-        date data_pedido
-        decimal valor_total
-        varchar status
-    }
+PEDIDOS {
+int id PK
+int cliente_id FK
+date data_pedido
+decimal valor_total
+varchar status
+}
 
-    CLIENTES ||--o{ PEDIDOS : "realiza"
+CLIENTES ||--o{ PEDIDOS : "places"
 
 ```
 
 ---
 
-## 3. Estrutura do repositório
-schema.sql: Script DDL para a criação das tabelas e população com dados simulados.intervalo_compras.sql: Consulta avançada utilizando ROW_NUMBER() e LEAD() para calcular o tempo médio entre a 1ª e a 2ª compra.analise_cohort.sql: Script analítico para construção da matriz de retenção por coortes mensais ($M+0$ a $M+3$).
+## 3. Repository Structure
+schema.sql: DDL script for creating tables and populating them with simulated data. intervalo_compras.sql: Advanced query using ROW_NUMBER() and LEAD() to calculate the average time between the 1st and 2nd purchase. analise_cohort.sql: Analytical script for constructing a retention matrix based on monthly cohorts ($M+0$ to $M+3$).
 
 ---
 
-## 4. Principais Consultas & Lógica de Negócio
-A. Tempo Médio entre a 1ª e a 2ª Compra
-Esta consulta isola a primeira compra de cada cliente e utiliza a função de janela LEAD() para capturar a data da transação subsequente, permitindo calcular o intervalo exato em dias até a ativação da recorrência.
+## 4. Key Queries & Business Logic
+A. Average Time Between 1st and 2nd Purchase
+This query isolates each customer's first purchase and uses the LEAD() window function to capture the date of the subsequent transaction, allowing for the calculation of the exact interval in days until repeat purchasing begins.
 
 ```
-WITH pedidos_ordenados AS (
-    SELECT 
-        cliente_id,
-        data_pedido,
-        ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY data_pedido ASC) AS ordem_compra,
-        LEAD(data_pedido) OVER (PARTITION BY cliente_id ORDER BY data_pedido ASC) AS proxima_data_pedido
-    FROM pedidos
-    WHERE status = 'Entregue'
+WITH ordered_orders AS (
+SELECT
+cliente_id,
+data_pedido,
+ROW_NUMBER() OVER (PARTITION BY cliente_id ORDER BY data_pedido ASC) AS purchase_order,
+LEAD(data_pedido) OVER (PARTITION BY cliente_id ORDER BY data_pedido ASC) AS next_order_date
+FROM pedidos
+WHERE status = 'Entregue'
 ),
-primeira_e_segunda_compra AS (
-    SELECT 
-        cliente_id,
-        data_pedido AS primeira_compra,
-        proxima_data_pedido AS segunda_compra,
-        (proxima_data_pedido - data_pedido) AS dias_entre_compras
-    FROM pedidos_ordenados
-    WHERE ordem_compra = 1 AND proxima_data_pedido IS NOT NULL
+first_and_second_purchase AS (
+SELECT
+cliente_id,
+data_pedido AS first_purchase,
+next_order_date AS second_purchase,
+(next_order_date - data_pedido) AS days_between_purchases
+FROM ordered_orders
+WHERE purchase_order = 1 AND next_order_date IS NOT NULL
 )
-SELECT 
-    COUNT(DISTINCT cliente_id) AS total_clientes_com_recompra,
-    ROUND(AVG(dias_entre_compras), 2) AS media_dias_primeira_para_segunda_compra
-FROM primeira_e_segunda_compra;
+SELECT
+COUNT(DISTINCT cliente_id) AS total_customers_with_repeat_purchase,
+ROUND(AVG(dias_entre_compras), 2) AS avg_days_first_to_second_purchase
+FROM first_and_second_purchase;
 
 ```
 
-B. Análise de Retenção por Cohort (M+0 a M+3)
-Agrupa os clientes pelo mês de cadastro original e calcula a proporção de clientes ativos nos meses seguintes, permitindo identificar padrões de sazonalidade e eficácia de campanhas de reengajamento.
-
---- 
-
-## 5. Business Insights (Exemplo Prático)
-Janela Crítica de Recompra: Identificou-se que a maioria dos clientes que retornam para uma segunda compra o fazem dentro de um intervalo de 30 a 45 dias após o cadastro.
-
-Queda de Retenção (M+1): O declínio acentuado nas safras de janeiro sugere a necessidade de implementar fluxos automatizados de e-mail marketing e campanhas de onboarding nas primeiras semanas após o primeiro pedido.
+B. Cohort Retention Analysis (M+0 to M+3)
+Groups customers by their original registration month and calculates the proportion of active customers in subsequent months, allowing for the identification of seasonality patterns and the effectiveness of re-engagement campaigns.
 
 ---
 
-## Como Executar
-Clone este repositório ou copie os scripts SQL.
+## 5. Business Insights (Practical Example)
+Critical Repurchase Window: It was identified that the majority of customers who return for a second purchase do so within a 30-to-45-day interval after registration.
 
-Execute o script schema.sql em seu ambiente de banco de dados compatível (PostgreSQL, Google BigQuery, Snowflake, etc.).
+Retention Drop (M+1): The sharp decline observed in January cohorts suggests a need to implement automated email marketing workflows and onboarding campaigns during the first few weeks following the initial order. ---
 
-Execute as consultas analíticas para visualizar as métricas de comportamento.
+## How to Run
+Clone this repository or copy the SQL scripts.
+
+Execute the `schema.sql` script in your compatible database environment (PostgreSQL, Google BigQuery, Snowflake, etc.).
+
+Run the analytical queries to view the behavioral metrics.
